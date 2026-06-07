@@ -49,10 +49,27 @@
         "type": "github"
       }
     },
+    "rocm-systems": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1780710747,
+        "narHash": "sha256-oA8wd7RLO9mpa3LqNUaaEu9Cf5Xsa+9uHN0UKWmSku4=",
+        "owner": "ROCm",
+        "repo": "rocm-systems",
+        "rev": "81fe4786f16e3b740d7f3acecc4d9640e8650358",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ROCm",
+        "repo": "rocm-systems",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
         "flake-parts": "flake-parts",
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": "nixpkgs",
+        "rocm-systems": "rocm-systems"
       }
     }
   },

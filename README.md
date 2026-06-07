@@ -16,6 +16,8 @@ AMD AI inference stack for NixOS — packages XRT, XDNA driver plugin, FastFlowL
 | `stable-diffusion-cpp-rocm` | ROCm-accelerated stable-diffusion.cpp backend | `pkgs.stable-diffusion-cpp.override { rocmSupport = true; }` |
 | `gaia` | AMD GAIA agent framework launcher (`gaia`, `gaia-cli`, `gaia-mcp`, `gaia-emr`, `gaia-code`) | `uvx` wrapper around [amd/gaia](https://github.com/amd/gaia) |
 | `benchmark` | Multi-backend benchmark harness | `nix run .#benchmark` |
+| `llama-cpp-rocm-nightly` | ROCm nightly build of llama.cpp against `rocm-systems` develop | `nix build .#llama-cpp-rocm-nightly` |
+| `stable-diffusion-cpp-rocm-nightly` | ROCm nightly build of stable-diffusion.cpp against `rocm-systems` develop | `nix build .#stable-diffusion-cpp-rocm-nightly` |
 
 CPU backends for llamacpp / whispercpp / sd-cpp use vanilla nixpkgs packages (`pkgs.llama-cpp`, `pkgs.whisper-cpp`, `pkgs.stable-diffusion-cpp`) and are wired automatically when `enableLemonade = true`. The GPU backends track nixpkgs too; the `mtp` recipe — built-in MTP support added by lemonade [#1944](https://github.com/lemonade-sdk/lemonade/pull/1944), backed by llama.cpp [#22673](https://github.com/ggml-org/llama.cpp/pull/22673) — fires on any nixpkgs llama.cpp past `b9175`.
 
@@ -36,6 +38,29 @@ nix-amd-ai.overlays.default = final: prev: {
 };
 ```
 
+### ROCm nightly overlay
+
+The flake also exports `overlays.rocm-nightly` which replaces `rocmPackages` with
+builds from the [ROCm rocm-systems](https://github.com/ROCm/rocm-systems) develop
+branch. Apply it independently:
+
+```nix
+nixpkgs.overlays = [inputs.nix-amd-ai.overlays.rocm-nightly];
+```
+
+Or use the NixOS module option:
+
+```nix
+hardware.amd-npu.useRocmNightly = true;  # requires enableROCm = true
+```
+
+Nightly-specific package variants are also available for ad-hoc builds:
+
+```bash
+nix build .#llama-cpp-rocm-nightly
+nix build .#stable-diffusion-cpp-rocm-nightly
+```
+
 ## Usage
 
 ```nix
@@ -52,6 +77,7 @@ inputs.nix-amd-ai.url = "github:noamsto/nix-amd-ai";
     enableFastFlowLM = true;  # LLM inference on NPU (requires enableNPU)
     enableLemonade = true;    # OpenAI-compatible API server
     enableROCm = true;        # ROCm GPU backends (llamacpp + sd-cpp)
+    useRocmNightly = true;    # build ROCm from rocm-systems develop branch
     enableVulkan = true;      # Vulkan GPU backends (llamacpp + whispercpp)
     enableImageGen = true;    # default true; set false to drop sd-cpp from closure
     lemonade.user = "youruser";
@@ -129,6 +155,7 @@ The lemonade source build deliberately doesn't bundle backend `llama-server` / `
 |---|---|
 | `enableLemonade` | CPU recipes always-on: `llamacpp:cpu`, `whispercpp:cpu`, `sd-cpp:cpu` (when `enableImageGen`) |
 | `enableROCm` | `llamacpp:rocm`, `llamacpp:system` (via `LEMONADE_GGML_HIP_PATH`), `sd-cpp:rocm` (when `enableImageGen`) |
+| `useRocmNightly` | Rebuild all ROCm packages from the `rocm-systems` develop branch instead of stable nixpkgs; requires `enableROCm = true` |
 | `enableVulkan` | `llamacpp:vulkan`, `whispercpp:vulkan` |
 | `enableImageGen` (default true) | Gates all `sd-cpp:*` packages; turn off for ~150 MB CPU / ~1.5 GB ROCm savings on headless LLM-only hosts |
 

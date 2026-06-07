@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  rocmNightlyOverlay ? null,
   ...
 }: let
   inherit (lib) mkEnableOption mkOption mkIf types optionalString optional optionals optionalAttrs makeBinPath versionAtLeast concatStringsSep;
@@ -79,6 +80,16 @@ in {
       '';
     };
 
+    useRocmNightly = mkOption {
+      type = types.bool;
+      default = false;
+      description = ''
+        Whether to build ROCm packages from the rocm-systems develop branch
+        (nightly) instead of the stable nixpkgs rocmPackages. Requires
+        enableROCm = true.
+      '';
+    };
+
     lemonade = {
       port = mkOption {
         type = types.port;
@@ -139,6 +150,8 @@ in {
   };
 
   config = mkIf cfg.enable {
+    nixpkgs.overlays = mkIf cfg.useRocmNightly [rocmNightlyOverlay];
+
     assertions = [
       {
         assertion = !cfg.enableNPU || versionAtLeast config.boot.kernelPackages.kernel.version "6.14";
@@ -147,6 +160,10 @@ in {
       {
         assertion = !cfg.enableFastFlowLM || cfg.enableNPU;
         message = "hardware.amd-npu.enableFastFlowLM requires enableNPU = true (FastFlowLM runs on the NPU).";
+      }
+      {
+        assertion = !cfg.useRocmNightly || cfg.enableROCm;
+        message = "hardware.amd-npu.useRocmNightly requires enableROCm = true.";
       }
       {
         assertion = cfg.gpuMemory.pagePoolSizeGiB == null || cfg.gpuMemory.ttmSizeGiB != null;
