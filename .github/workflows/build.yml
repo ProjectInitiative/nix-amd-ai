@@ -13,7 +13,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: DeterminateSystems/nix-installer-action@main
       - uses: cachix/cachix-action@v17
         with:
@@ -21,6 +21,38 @@ jobs:
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
       - name: Build all packages
         run: nix build .#xrt .#xrt-plugin-amdxdna .#fastflowlm .#lemonade
+      - name: Check flake
+        run: nix flake check
+      - name: Verify lemond unit (systemd-analyze)
+        run: |
+          unit=$(nix build .#lemond-unit --print-out-paths)/lemond.service
+
+          # Self-check: prove the verifier actually flags a bad unit, so a clean
+          # pass below can't mask a missing/dead systemd-analyze on the runner.
+          printf '[Unit]\nDescription=ctl\n[Service]\nExecStart=/bin/true\nRuntimeDirectory=/absolute/bad\n' > ctl.service
+          systemd-analyze verify ctl.service 2>&1 | grep -qi 'RuntimeDirectory' \
+            || { echo "systemd-analyze did not flag a known-bad unit; aborting"; exit 1; }
+
+          # A valid unit yields no diagnostic mentioning our directives, so any
+          # mention of them is a real problem. (ExecStart points at an unbuilt
+          # store path, which verify reports separately — ignored via || true.)
+          report=$(systemd-analyze verify "$unit" 2>&1 || true)
+          echo "$report"
+          if echo "$report" | grep -Ei 'RuntimeDirectory|NIX_LD'; then
+            echo "systemd-analyze flagged lemond's directives"; exit 1
+          fi
+
+  build-darwin:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: cachix/cachix-action@v17
+        with:
+          name: nix-amd-ai
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      - name: Build Lemonade (Metal)
+        run: nix build .#lemonade .#benchmark
       - name: Check flake
         run: nix flake check
 
@@ -31,7 +63,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -65,7 +97,7 @@ jobs:
             notes="First tagged release."
           fi
 
-          lem=$(grep 'version = ' pkgs/lemonade/default.nix | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          lem=$(sed -n 's/.*"\(.*\)".*/\1/p' pkgs/lemonade/version.nix | head -1)
           if [ -n "$lem" ]; then
             title="$tag — Lemonade $lem"
           else

@@ -2,6 +2,8 @@
 
 AMD AI inference stack for NixOS — packages XRT, XDNA driver plugin, FastFlowLM, and Lemonade with a NixOS module for NPU + ROCm GPU support.
 
+On Apple Silicon (`aarch64-darwin`) the same flake also serves the cross-platform Lemonade server (llama.cpp Metal backend) via a nix-darwin module — see [macOS (nix-darwin)](#macos-nix-darwin). The AMD/NPU/ROCm stack is Linux-only.
+
 ## Packages
 
 | Package | Description | Source |
@@ -87,17 +89,43 @@ inputs.nix-amd-ai.url = "github:noamsto/nix-amd-ai";
 }
 ```
 
+### macOS (nix-darwin)
+
+On Apple Silicon the flake ships a `darwinModules.default` exposing `services.lemonade`. It installs the Lemonade server and runs it as a per-user LaunchAgent (the llama.cpp Metal backend needs a GUI login session, so it cannot run as a root daemon). The Metal/sd.cpp backends are fetched into `~/.cache/lemonade` on first run, exactly as the upstream `.pkg` does — there is no NPU/ROCm wiring on macOS.
+
+```nix
+# flake.nix
+inputs.nix-amd-ai.url = "github:noamsto/nix-amd-ai";
+
+# darwin configuration
+{inputs, ...}: {
+  imports = [inputs.nix-amd-ai.darwinModules.default];
+
+  services.lemonade = {
+    enable = true;
+    port = 13305;          # default
+    host = "localhost";    # default
+  };
+}
+```
+
+The package alone (no service) is also available: `nix build github:noamsto/nix-amd-ai#lemonade` on `aarch64-darwin` produces `bin/lemond` + `bin/lemonade` serving the OpenAI-compatible API at `http://localhost:13305/api/v1`. It wraps upstream's prebuilt, server-only `lemonade-embeddable-*-macos-arm64` release (no web UI / Tauri app — those ship only in the `.pkg`).
+
 ## Binary cache
 
 Pre-built packages are available via Cachix:
 
 ```nix
-# flake.nix nixConfig (or nix.settings in your NixOS config)
+# nix.settings in your NixOS config (see caveat below for flake nixConfig)
 substituters = ["https://nix-amd-ai.cachix.org"];
 trusted-public-keys = ["nix-amd-ai.cachix.org-1:F4OU4vw/lV2oiG6SBHZ+nqjl4EFJuqI4X9A7pvaBmhQ="];
 ```
 
-**Do not `.follows` our `nixpkgs` input.** The overlay is intentionally built against this flake's pinned `nixpkgs` (see `flake.nix` `pinned`) so the input closure hash matches both `cache.nixos.org` (Hydra-cached `pkgs.llama-cpp.override`, etc.) and our Cachix. If you add `inputs.nix-amd-ai.inputs.nixpkgs.follows = "nixpkgs"`, the overrides re-hash against your `nixpkgs` and every backend rebuilds from source. Just leave this input pinned:
+> [!IMPORTANT]
+> Put this in `nix.settings` (NixOS) or your daemon's `nix.conf`. A substituter added only via flake `nixConfig` takes effect **only for trusted users** — otherwise Nix silently ignores it and rebuilds everything from source, including the Tauri app's crates.io cargo-vendor fetch (the failure in [#28](https://github.com/noamsto/nix-amd-ai/issues/28)).
+
+> [!WARNING]
+> **Do not `.follows` our `nixpkgs` input.** The overlay is intentionally built against this flake's pinned `nixpkgs` (see `flake.nix` `pinned`) so the input closure hash matches both `cache.nixos.org` (Hydra-cached `pkgs.llama-cpp.override`, etc.) and our Cachix. If you add `inputs.nix-amd-ai.inputs.nixpkgs.follows = "nixpkgs"`, the overrides re-hash against your `nixpkgs` and every backend rebuilds from source. Just leave this input pinned:
 
 ```nix
 # good — let nix-amd-ai keep its own pinned nixpkgs
@@ -159,6 +187,8 @@ The lemonade source build deliberately doesn't bundle backend `llama-server` / `
 | `enableVulkan` | `llamacpp:vulkan`, `whispercpp:vulkan` |
 | `enableImageGen` (default true) | Gates all `sd-cpp:*` packages; turn off for ~150 MB CPU / ~1.5 GB ROCm savings on headless LLM-only hosts |
 
+Omni models (e.g. `LMX-Omni-*`) pull in two backends that need extra host plumbing the module wires automatically with `enableLemonade` ([#33](https://github.com/noamsto/nix-amd-ai/issues/33)): `whispercpp` resolves its writable runtime dir from the unit's `RuntimeDirectory`, and the runtime-downloaded kokoro TTS binary is a foreign prebuilt ELF, so the module enables `nix-ld` (its default libraries already cover koko's openssl + gcc-libs) and re-exports `NIX_LD*` into the `lemond` service. nix-ld is set via `mkDefault`, so hosts managing it themselves can opt out.
+
 Lemonade v10.4.0 added an experimental `llamacpp:vllm` (vLLM ROCm) backend for Strix Halo / Strix Point on Linux. We don't wire it: on Strix Point gfx1150 our benchmarks already show Vulkan ahead of ROCm for both prefill and decode, vLLM's batching wins don't apply to single-user lemonade workloads, and upstream still distributes it as a TheRock-style prebuilt blob with no env-var migration. Revisit when it leaves experimental, when a Strix Halo host lands here, or if anyone benchmarks it past Vulkan on gfx1150.
 
 Vanilla v10.5.0 ignores these env vars on NixOS for several reasons that this flake patches in-tree (see `pkgs/lemonade/default.nix:postPatch`, [issue #5](https://github.com/noamsto/nix-amd-ai/issues/5), upstream [lemonade-sdk/lemonade#1791](https://github.com/lemonade-sdk/lemonade/issues/1791)):
@@ -175,6 +205,8 @@ If `lemonade backends` reports a backend as `installed` but benchmarks report <5
 ### Tauri desktop app: download progress is fragile when backgrounded
 
 WebKitGTK suspends the network process for windows that are minimized, hidden, or moved to another workspace. That kills the SSE progress stream lemond uses for downloads at ~60–90 s. Without our patch, that nuked the whole download mid-flight. With the patch, the download keeps running server-side and finishes regardless — but the UI stops seeing progress until you refocus the window (and may need a refresh to pick up the result). For very large pulls, prefer the regular browser at `http://localhost:13305` or `lemonade pull <model>` from the CLI; both survive backgrounding cleanly.
+
+The desktop app is the only part of lemonade that pulls a Rust + npm build (and a crates.io cargo-vendor fetch). Headless/server hosts that only need the `lemond` API + CLI can skip it entirely with `lemonade.desktopApp.enable = false;` — this drops the Tauri build path from the closure. (The pre-built app is also on the [binary cache](#binary-cache), so configuring the substituter avoids building it from source in the first place.)
 
 ## GPU memory headroom
 
@@ -345,49 +377,28 @@ curl -s -X POST http://localhost:13305/api/v1/images/generations \
 
 Lemond logs should show `Starting server on port 8001 (backend: rocm)` and *no* `Installing sd-server` line — sd-server is invoked directly from the nix store.
 
-### Interactive TUI (default)
+### Benchmarking
+
+The `.#benchmark` harness measures real decode throughput through a running `lemond`,
+compares it against a hardware-derived ceiling, and gates against silent CPU fallback:
 
 ```bash
-nix run .#benchmark
+nix run .#benchmark                                        # interactive TUI
+nix run .#benchmark -- --no-tui --backend rocm Gemma-4-26B-A4B-it-GGUF   # headless / CI
 ```
 
-Launches a full-screen TUI that walks through:
+The TUI walks Hardware → Preflight → Mode → Model → Params → Run → Results, with a live
+status rail (gfx arch · GTT budget · GPU% · power · preflight) above every screen.
+`--no-tui` prints markdown and exits non-zero when a model falls below `--min-decode-tps`
+(default 5 t/s), reliably signalling CPU fallback.
 
-1. **Hardware panel** — CPU, GPU, VRAM, driver, kernel
-2. **Preflight check** — detects interference (competing GPU processes, battery power); consent-gated fixers where possible
-3. **Mode picker** — single backend, A/B comparison, or MTP on/off
-4. **Model picker** — lists downloaded lemonade models annotated with VRAM fit and predicted throughput ceiling
-5. **Params form** — context size, repeat, warmup, backends
-6. **Live run** — streaming progress with GPU% utilisation
-7. **Results** — measured vs predicted, markdown export, log written to `bench-logs-<topic>-<date>/` (cwd-relative)
+See **[`pkgs/benchmark-go/README.md`](pkgs/benchmark-go/README.md)** for the full
+reference: wizard flow, modes (HTTP / MTP A/B / backend), the model picker
+(search, fit glyphs, markers), the results columns (Decode, Predicted, % ceil), the
+status rail, preflight fixers, and every headless flag.
 
-A persistent **status rail** sits above every screen — `gfx arch · GTT budget · GPU% · power · preflight` — refreshed live (~1s), so you can see whether the GPU is actually idle (e.g. another process holding a model) without leaving the current step. Colors adapt to the terminal background, staying legible on both light and dark themes.
-
-For trustworthy numbers: run with an idle GPU and on AC power (the preflight guard will prompt if either condition isn't met).
-
-The benchmark is a portable Go binary. It runs off-Nix on any machine with lemonade installed — just put the binary on `$PATH`.
-
-### Headless mode
-
-```bash
-nix run .#benchmark -- --no-tui --backend rocm   Phi-4-mini-instruct-GGUF
-nix run .#benchmark -- --no-tui --backend vulkan Phi-4-mini-instruct-GGUF
-nix run .#benchmark -- --no-tui Gemma-4-26B-A4B-it-GGUF
-```
-
-`--no-tui` keeps all the original flags: positional model IDs, `--backend rocm|vulkan`, `--mtp-ab MODEL`, `--mtp-ab-backends`, `--repeat`, `--warmup`, `--ctx-size`, `--min-decode-tps`. Exits non-zero when any model falls below `--min-decode-tps` (default 5 t/s), which reliably signals CPU fallback rather than GPU execution.
-
-`--backend` rewrites `llamacpp.backend` in `~/.cache/lemonade/config.json`, restarts `lemond.service` (via sudo), runs the benchmark, and restores the original config on exit.
-
-### MTP speedup (Qwen3.6 family)
-
-Use `--mtp-ab` to measure the Multi-Token Prediction speedup on a given model:
-
-```bash
-nix run .#benchmark -- --no-tui --mtp-ab Qwen3.6B-GGUF
-```
-
-Authoritative numbers (idle GPU + AC + performance power profile) are **pending** — the `--mtp-ab` methodology is stable but no clean reference run has been committed yet.
+Authoritative MTP A/B numbers (idle GPU + AC + performance power profile) are **pending**
+— the methodology is stable but no clean reference run has been committed yet.
 
 ## CI
 
