@@ -31,10 +31,11 @@
     ln -sf ${pkgs.xrt-plugin-amdxdna}/opt/xilinx/xrt/lib/libxrt_driver_xdna* $out/lib/
   '';
 
-  # XRT (NPU) libs only present when enableNPU; ROCm libs trail them.
+  # XRT (NPU) libs only — ROCm CLR is excluded to avoid LLVM version conflicts
+  # at startup (nightly ROCm may link a different LLVM than lemond). Backends
+  # load ROCm lazily via LEMONADE_GGML_HIP_PATH.
   ldLibraryPath = concatStringsSep ":" (
     optional cfg.enableNPU "${xrt-combined}/lib"
-    ++ optional cfg.enableROCm "${pkgs.rocmPackages.clr}/lib"
   );
 
   pathList =
