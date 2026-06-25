@@ -224,7 +224,13 @@ in {
   };
 
   config = mkIf cfg.enable {
-    nixpkgs.overlays = mkIf cfg.useRocmNightly [rocmNightlyOverlay];
+    # Replace pkgs entirely with a fresh import that has the nightly overlay
+    # baked in, so ALL transitive ROCm dependencies (rocblas, hipblas, etc.)
+    # are consistently rebuilt — overrideScope alone wouldn't propagate.
+    nixpkgs.pkgs = mkIf cfg.useRocmNightly (import pkgs.path {
+      inherit (pkgs) system config;
+      overlays = [ rocmNightlyOverlay ];
+    });
 
     assertions = [
       {
