@@ -16,6 +16,11 @@
     hash = "sha256-I09JTi6I6Ny2Oso7Uitu6EgrtkTEfHmH45jYWdr1cpk=";
   };
 in {
+  # Rebuild against the nightly ROCm stack so all LLVM/driver versions are
+  # consistent (avoids LLVM option conflicts at startup).
+  stable-diffusion-cpp-rocm = final.stable-diffusion-cpp.override { rocmSupport = true; };
+  llama-cpp-rocm = final.llama-cpp.override { rocmSupport = true; };
+
   rocmPackages = prev.rocmPackages.overrideScope (rocmFinal: rocmPrev: {
     rocm-core = rocmPrev.rocm-core.overrideAttrs (_: nightlySrc "rocm-core");
 
