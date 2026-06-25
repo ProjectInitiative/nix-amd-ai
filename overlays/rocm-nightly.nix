@@ -16,10 +16,6 @@
     hash = "sha256-I09JTi6I6Ny2Oso7Uitu6EgrtkTEfHmH45jYWdr1cpk=";
   };
 in {
-  # Rebuild consumer packages to use the nightly rocmPackages scope
-  stable-diffusion-cpp-rocm = prev.stable-diffusion-cpp.override { rocmSupport = true; rocmPackages = final.rocmPackages; };
-  llama-cpp-rocm = prev.llama-cpp.override { rocmSupport = true; rocmPackages = final.rocmPackages; };
-
   rocmPackages = prev.rocmPackages.overrideScope (rocmFinal: rocmPrev: {
     rocm-core = rocmPrev.rocm-core.overrideAttrs (_: nightlySrc "rocm-core");
 
@@ -70,13 +66,6 @@ in {
     hip-common = rocmPrev.hip-common.overrideAttrs (_: nightlySrc "hip");
 
     clr = rocmPrev.clr.overrideAttrs (_: nightlySrc "clr");
-
-    # Rebuild consumer packages against the nightly scope so all LLVM/driver
-    # versions are consistent (overrideScope alone doesn't propagate deps).
-    rocblas = rocmPrev.rocblas.override { rocmPackages = rocmFinal; };
-    hipblas = rocmPrev.hipblas.override { rocmPackages = rocmFinal; };
-    hipblaslt = rocmPrev.hipblaslt.override { rocmPackages = rocmFinal; };
-    rocsolver = rocmPrev.rocsolver.override { rocmPackages = rocmFinal; };
 
     roctracer = rocmPrev.roctracer.overrideAttrs (_: nightlySrc "roctracer");
 
