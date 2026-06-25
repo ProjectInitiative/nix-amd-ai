@@ -97,10 +97,7 @@
         nixosModules.default = {
           imports = [./modules/amd-npu.nix];
           nixpkgs.overlays = [inputs.self.overlays.default];
-          _module.args = {
-            rocmNightlyOverlay = inputs.self.overlays.rocm-nightly;
-            rocmNightlyPkgs = rocmNightlyPkgs;
-          };
+          _module.args.rocmNightlyOverlay = inputs.self.overlays.rocm-nightly;
         };
 
         darwinModules.default = {

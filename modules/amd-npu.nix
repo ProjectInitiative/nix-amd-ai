@@ -3,7 +3,6 @@
   lib,
   pkgs,
   rocmNightlyOverlay ? null,
-  rocmNightlyPkgs ? null,
   ...
 }: let
   inherit (lib) mkEnableOption mkOption mkIf mkDefault types optionalString optional optionals optionalAttrs versionAtLeast concatStringsSep;
@@ -227,8 +226,16 @@ in {
   config = mkIf cfg.enable {
     nixpkgs.overlays = mkIf cfg.useRocmNightly [
       rocmNightlyOverlay
-      (final: prev: {
-        inherit (rocmNightlyPkgs) stable-diffusion-cpp-rocm llama-cpp-rocm;
+      (final: prev: let
+        # Import main nixpkgs with nightly overlay so consumer packages use
+        # the same nixpkgs revision as the host (avoids rocmSupport mismatches).
+        nightlyPkgs = import pkgs.path {
+          inherit (pkgs) system config;
+          overlays = [ rocmNightlyOverlay ];
+        };
+      in {
+        stable-diffusion-cpp-rocm = nightlyPkgs.stable-diffusion-cpp.override { rocmSupport = true; };
+        llama-cpp-rocm = nightlyPkgs.llama-cpp.override { rocmSupport = true; };
       })
     ];
 
