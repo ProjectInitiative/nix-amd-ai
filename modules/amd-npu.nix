@@ -75,6 +75,7 @@
   lemonadeDefaults =
     {
       global_timeout = 0;
+      max_loaded_models = cfg.lemonade.maxLoadedModels;
       llamacpp =
         {
           args = "--flash-attn ${cfg.lemonade.flashAttn}";
@@ -192,6 +193,16 @@ in {
           gfx1150 + Gemma. Set "auto" or "off" to override.
         '';
       };
+
+      maxLoadedModels = mkOption {
+        type = types.ints.positive;
+        default = 1;
+        description = ''
+          Maximum number of models that can be loaded simultaneously. Increase this
+          to keep multiple models pinned in memory at once.
+        '';
+      };
+    };
     };
 
     gpuMemory = {
