@@ -203,7 +203,6 @@ in {
         '';
       };
     };
-    };
 
     gpuMemory = {
       ttmSizeGiB = mkOption {
