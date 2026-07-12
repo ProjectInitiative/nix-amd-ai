@@ -302,7 +302,6 @@ in {
     ];
 
     # Kernel configuration (NPU-only)
-    boot.kernelParams = optionals cfg.enableNPU ["iommu.passthrough=0"];
     boot.kernelModules = optionals cfg.enableNPU ["amdxdna"];
 
     # GTT pool sizing (opt-in). Raises what's *addressable*, not consumed — no
