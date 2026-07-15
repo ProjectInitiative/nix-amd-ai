@@ -65,12 +65,15 @@
       systems = ["x86_64-linux" "aarch64-darwin"];
 
       flake = {
-        overlays = {
-          default = final: prev: let
-            # Build everything against our own nixpkgs input rather than the
-            # consumer's `final`, so the input closure matches CI's and Cachix
-            # substitution works regardless of which channel the consumer is on.
-            pinned = import inputs.nixpkgs {inherit (prev.stdenv.hostPlatform) system;};
+        overlays = let
+          # Build everything against our own nixpkgs input rather than the
+          # consumer's `final`, so the input closure matches CI's and Cachix
+          # substitution works regardless of which channel the consumer is on.
+          mkDefault = extraOverlays: final: prev: let
+            pinned = import inputs.nixpkgs {
+              inherit (prev.stdenv.hostPlatform) system;
+              overlays = extraOverlays;
+            };
           in
             # Branch on `prev` (not `final`): making the overlay's key set depend
             # on `final.stdenv` would force the fixpoint and recurse infinitely.
@@ -101,13 +104,19 @@
               };
               gaia = pinned.callPackage ./pkgs/gaia {};
             };
-          rocm-nightly = rocmNightlyOverlay;
-        };
+          in {
+            rocm-nightly = rocmNightlyOverlay;
+            default = mkDefault [];
+            default-nightly = mkDefault [rocmNightlyOverlay];
+          };
 
         nixosModules.default = {
           imports = [./modules/amd-npu.nix];
-          nixpkgs.overlays = [inputs.self.overlays.default];
-          _module.args.rocmNightlyOverlay = inputs.self.overlays.rocm-nightly;
+          _module.args = {
+            rocmNightlyOverlay = inputs.self.overlays.rocm-nightly;
+            defaultStableOverlay = inputs.self.overlays.default;
+            defaultNightlyOverlay = inputs.self.overlays.default-nightly;
+          };
         };
 
         darwinModules.default = {

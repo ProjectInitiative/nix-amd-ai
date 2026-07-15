@@ -2,7 +2,8 @@
   config,
   lib,
   pkgs,
-  rocmNightlyOverlay ? null,
+  defaultStableOverlay,
+  defaultNightlyOverlay,
   ...
 }: let
   inherit (lib) mkEnableOption mkOption mkIf mkDefault types optionalString optional optionals optionalAttrs versionAtLeast concatStringsSep;
@@ -295,22 +296,15 @@ in {
     };
   };
 
-  config = mkIf cfg.enable {
-    nixpkgs.overlays = mkIf cfg.useRocmNightly [
-      rocmNightlyOverlay
-      (final: prev: let
-        # Import main nixpkgs with nightly overlay so consumer packages use
-        # the same nixpkgs revision as the host (avoids rocmSupport mismatches).
-        nightlyPkgs = import pkgs.path {
-          inherit (pkgs) system config;
-          overlays = [ rocmNightlyOverlay ];
-        };
-      in {
-        stable-diffusion-cpp-rocm = nightlyPkgs.stable-diffusion-cpp.override { rocmSupport = true; };
-        llama-cpp-rocm = nightlyPkgs.llama-cpp.override { rocmSupport = true; };
-      })
+  config = {
+    # Select the right overlay variant at the source: nightly applies
+    # rocmNightlyOverlay to `pinned` inside the overlay so it propagates
+    # through ALL packages (lemonade, ds4, gaia, ...), not just the
+    # top-level rocmConsumerPkgs.
+    nixpkgs.overlays = [
+      (if cfg.useRocmNightly then defaultNightlyOverlay else defaultStableOverlay)
     ];
-
+  } // mkIf cfg.enable {
     assertions = [
       {
         assertion = !cfg.enableNPU || versionAtLeast config.boot.kernelPackages.kernel.version "6.14";
