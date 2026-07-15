@@ -2,7 +2,6 @@
   config,
   lib,
   pkgs,
-  defaultStableOverlay,
   defaultNightlyOverlay,
   ...
 }: let
@@ -296,15 +295,13 @@ in {
     };
   };
 
-  config = {
-    # Select the right overlay variant at the source: nightly applies
-    # rocmNightlyOverlay to `pinned` inside the overlay so it propagates
-    # through ALL packages (lemonade, ds4, gaia, ...), not just the
-    # top-level rocmConsumerPkgs.
-    nixpkgs.overlays = [
-      (if cfg.useRocmNightly then defaultNightlyOverlay else defaultStableOverlay)
-    ];
-  } // mkIf cfg.enable {
+  config = mkIf cfg.enable {
+    # default-nightly runs AFTER the default overlay (applied in
+    # nixosModules.default) and overrides every package with nightly
+    # ROCm builds — pinning with the nightly overlay so it propagates
+    # through ALL packages (lemonade, ds4, gaia, ...).
+    nixpkgs.overlays = mkIf cfg.useRocmNightly [ defaultNightlyOverlay ];
+
     assertions = [
       {
         assertion = !cfg.enableNPU || versionAtLeast config.boot.kernelPackages.kernel.version "6.14";
