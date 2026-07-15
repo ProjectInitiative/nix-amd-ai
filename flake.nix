@@ -12,10 +12,17 @@
       url = "github:ROCm/rocm-systems";
       flake = false;
     };
+    flake-compat = {
+      url = "github:NixOS/flake-compat";
+      flake = false;
+    };
   };
 
   outputs = inputs @ {flake-parts, ...}: let
-    # Bump libwebsockets from 4.4.1 to 4.5.8
+    # Bump libwebsockets from 4.4.1 to 4.5.8: 4.4.1 emits a malformed HTTP/101
+    # upgrade response (missing the empty CRLF after the last header) for
+    # lemonade's /realtime endpoint, which strict clients (Firefox, aiohttp,
+    # python-websockets) reject with code 1006.
     libwebsocketsOverride = pkgs:
       pkgs.libwebsockets.overrideAttrs (old: rec {
         version = "4.5.8";
@@ -25,6 +32,8 @@
           rev = "v${version}";
           hash = "sha256-0pLBxOSKaxboHd9L27RKKqSJ9lVH4wPgKSyXEoJMal4=";
         };
+        # 4.5.8 already contains upstream's fix for CVE-2025-11677; the
+        # nixpkgs back-port patch fails to apply on top.
         patches = [];
         # 4.5.8's .pc.in uses CMAKE_INSTALL_FULL_LIBDIR (absolute), so the
         # nixpkgs pc-fix substitute leaves a `${exec_prefix}//nix/store/.../lib`
@@ -83,6 +92,7 @@
             in {
               inherit xrt fastflowlm llama-cpp llama-cpp-vulkan llama-cpp-rocm libwebsockets;
               inherit whisper-cpp-vulkan stable-diffusion-cpp-rocm;
+              ds4 = pinned.callPackage ./pkgs/ds4 {};
               xrt-plugin-amdxdna = pinned.callPackage ./pkgs/xrt-plugin-amdxdna {inherit xrt;};
               lemonade = pinned.callPackage ./pkgs/lemonade {
                 inherit fastflowlm llama-cpp-vulkan llama-cpp-rocm libwebsockets;
@@ -126,6 +136,7 @@
         in {
           inherit xrt fastflowlm llama-cpp llama-cpp-vulkan llama-cpp-rocm libwebsockets;
           inherit whisper-cpp-vulkan stable-diffusion-cpp-rocm;
+          ds4 = pkgs.callPackage ./pkgs/ds4 {};
           xrt-plugin-amdxdna = pkgs.callPackage ./pkgs/xrt-plugin-amdxdna {inherit xrt;};
           lemonade = pkgs.callPackage ./pkgs/lemonade {
             inherit fastflowlm llama-cpp-vulkan llama-cpp-rocm libwebsockets;
@@ -138,6 +149,7 @@
           llama-cpp-rocm-nightly = rocmNightlyPkgs.llama-cpp-rocm;
           stable-diffusion-cpp-rocm-nightly = rocmNightlyPkgs.stable-diffusion-cpp.override {rocmSupport = true;};
           lemond-unit = lemondUnit;
+          ds4-server-unit = ds4ServerUnit;
         };
 
         # macOS: server-only Lemonade wrap (Metal backend, fetched at runtime).
@@ -170,6 +182,37 @@
               }
             ];
           }).config.systemd.units."lemond.service".unit;
+
+        # Rendered ds4-server.service for a minimal ds4.enable host — consumed by
+        # the ds4-server-unit-render check.
+        ds4ServerUnit =
+          (inputs.nixpkgs.lib.nixosSystem {
+            inherit system;
+            modules = [
+              inputs.self.nixosModules.default
+              {
+                boot.loader.grub.enable = false;
+                fileSystems."/" = {
+                  device = "/dev/sda1";
+                  fsType = "ext4";
+                };
+                hardware.amd-npu = {
+                  enable = true;
+                  ds4 = {
+                    enable = true;
+                    user = "testuser";
+                    model = "/var/lib/ds4/DeepSeek-V4-Flash.gguf";
+                    ctx = 100000;
+                    extraArgs = ["--ssd-streaming"];
+                  };
+                };
+                users.users.testuser = {
+                  isNormalUser = true;
+                  extraGroups = ["video" "render"];
+                };
+              }
+            ];
+          }).config.systemd.units."ds4-server.service".unit;
       in {
         packages =
           (
@@ -207,30 +250,31 @@
               ];
             }).config.system.build.etc;
 
-            module-eval-rocm-false = (inputs.nixpkgs.lib.nixosSystem {
-              inherit system;
-              modules = [
-                inputs.self.nixosModules.default
-                {
-                  boot.loader.grub.enable = false;
-                  fileSystems."/" = {
-                    device = "/dev/sda1";
-                    fsType = "ext4";
-                  };
-                  hardware.amd-npu = {
-                    enable = true;
-                    enableFastFlowLM = true;
-                    enableLemonade = true;
-                    enableROCm = false;
-                    lemonade.user = "testuser";
-                  };
-                  users.users.testuser = {
-                    isNormalUser = true;
-                    extraGroups = ["video" "render"];
-                  };
-                }
-              ];
-            }).config.system.build.etc;
+            module-eval-rocm-false =
+              (inputs.nixpkgs.lib.nixosSystem {
+                inherit system;
+                modules = [
+                  inputs.self.nixosModules.default
+                  {
+                    boot.loader.grub.enable = false;
+                    fileSystems."/" = {
+                      device = "/dev/sda1";
+                      fsType = "ext4";
+                    };
+                    hardware.amd-npu = {
+                      enable = true;
+                      enableFastFlowLM = true;
+                      enableLemonade = true;
+                      enableROCm = false;
+                      lemonade.user = "testuser";
+                    };
+                    users.users.testuser = {
+                      isNormalUser = true;
+                      extraGroups = ["video" "render"];
+                    };
+                  }
+                ];
+              }).config.system.build.etc;
 
             module-eval-rocm-true =
               (inputs.nixpkgs.lib.nixosSystem {
@@ -342,6 +386,22 @@
                 || { echo "missing/changed NIX_LD"; exit 1; }
               grep -q 'NIX_LD_LIBRARY_PATH=/run/current-system/sw/share/nix-ld/lib' "$unit" \
                 || { echo "missing/changed NIX_LD_LIBRARY_PATH"; exit 1; }
+              touch $out
+            '';
+
+            # ds4-server assembles its argv from the ds4.* options: the model
+            # path, ctx, host/port, and passthrough extraArgs must all land on
+            # the ExecStart line, and the unit must grant render/video GPU
+            # access plus a writable state dir.
+            ds4-server-unit-render = pkgs.runCommand "ds4-server-unit-render" {} ''
+              unit=${ds4ServerUnit}/ds4-server.service
+              grep -q -- '--model /var/lib/ds4/DeepSeek-V4-Flash.gguf' "$unit" || { echo "missing/changed --model"; exit 1; }
+              grep -q -- '--ctx 100000' "$unit" || { echo "missing/changed --ctx"; exit 1; }
+              grep -q -- '--port 8000' "$unit" || { echo "missing/changed --port"; exit 1; }
+              grep -q -- '--ssd-streaming' "$unit" || { echo "missing extraArgs passthrough"; exit 1; }
+              grep -q 'SupplementaryGroups=video' "$unit" || { echo "missing video group"; exit 1; }
+              grep -q 'SupplementaryGroups=render' "$unit" || { echo "missing render group"; exit 1; }
+              grep -q 'StateDirectory=ds4' "$unit" || { echo "missing StateDirectory"; exit 1; }
               touch $out
             '';
 
