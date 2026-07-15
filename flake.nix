@@ -98,6 +98,10 @@
                 src = inputs.llama-cpp-src;
                 patches = [];
                 version = "unstable-2026-07-15";
+                # Latest master's build-info.cpp parses the version string as
+                # a C expression; feed the build number explicitly to avoid
+                # 'unstable was not declared in this scope'.
+                cmakeFlags = (old.cmakeFlags or []) ++ [ "-DLLAMA_BUILD_NUMBER=0" ];
               };
               llama-cpp = (pinned.llama-cpp.overrideAttrs llamaCppOverride);
               llama-cpp-vulkan = (pinned.llama-cpp.override {vulkanSupport = true;}).overrideAttrs llamaCppOverride;
@@ -152,6 +156,7 @@
             src = inputs.llama-cpp-src;
             patches = [];
             version = "unstable-2026-07-15";
+            cmakeFlags = (old.cmakeFlags or []) ++ [ "-DLLAMA_BUILD_NUMBER=0" ];
           };
           llama-cpp = (pkgs.llama-cpp.overrideAttrs llamaCppOverride);
           llama-cpp-vulkan = (pkgs.llama-cpp.override {vulkanSupport = true;}).overrideAttrs llamaCppOverride;

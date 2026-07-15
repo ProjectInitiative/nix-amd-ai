@@ -34,6 +34,22 @@
         "type": "github"
       }
     },
+    "llama-cpp-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1784142139,
+        "narHash": "sha256-ePZOtcxU1I14C3eJeSRg5M2HpZIO0ESTLdMfxXLdBQY=",
+        "owner": "ggml-org",
+        "repo": "llama.cpp",
+        "rev": "505b1ed15ca80e2a19f12ff4ac365e40fb374053",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ggml-org",
+        "repo": "llama.cpp",
+        "type": "github"
+      }
+    },
     "nix-darwin": {
       "inputs": {
         "nixpkgs": [
@@ -105,7 +121,8 @@
       "inputs": {
         "flake-compat": "flake-compat",
         "flake-parts": "flake-parts",
-"nix-darwin": "nix-darwin",
+        "llama-cpp-src": "llama-cpp-src",
+        "nix-darwin": "nix-darwin",
         "nixpkgs": "nixpkgs",
         "rocm-systems": "rocm-systems"
       }
