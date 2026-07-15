@@ -16,6 +16,10 @@
       url = "github:NixOS/flake-compat";
       flake = false;
     };
+    llama-cpp-src = {
+      url = "github:ggml-org/llama.cpp";
+      flake = false;
+    };
   };
 
   outputs = inputs @ {flake-parts, ...}: let
@@ -87,9 +91,17 @@
               libwebsockets = libwebsocketsOverride pinned;
               xrt = pinned.callPackage ./pkgs/xrt {};
               fastflowlm = pinned.callPackage ./pkgs/fastflowlm {inherit xrt;};
-              llama-cpp = pinned.llama-cpp;
-              llama-cpp-vulkan = pinned.llama-cpp.override {vulkanSupport = true;};
-              llama-cpp-rocm = pinned.llama-cpp-rocm;
+              # Allow overriding llama-cpp source to pick up latest model
+              # architectures (e.g. hy_v3). Update via:
+              #   nix flake lock --update-input llama-cpp-src
+              llamaCppOverride = old: {
+                src = inputs.llama-cpp-src;
+                patches = [];
+                version = "unstable-2026-07-15";
+              };
+              llama-cpp = (pinned.llama-cpp.overrideAttrs llamaCppOverride);
+              llama-cpp-vulkan = (pinned.llama-cpp.override {vulkanSupport = true;}).overrideAttrs llamaCppOverride;
+              llama-cpp-rocm = (pinned.llama-cpp-rocm.overrideAttrs llamaCppOverride);
               whisper-cpp-vulkan = pinned.whisper-cpp.override {vulkanSupport = true;};
               stable-diffusion-cpp-rocm = pinned.stable-diffusion-cpp.override {rocmSupport = true;};
             in {
@@ -136,9 +148,14 @@
         linuxPackages = let
           xrt = pkgs.callPackage ./pkgs/xrt {};
           fastflowlm = pkgs.callPackage ./pkgs/fastflowlm {inherit xrt;};
-          llama-cpp = pkgs.llama-cpp;
-          llama-cpp-vulkan = pkgs.llama-cpp.override {vulkanSupport = true;};
-          llama-cpp-rocm = pkgs.llama-cpp-rocm;
+          llamaCppOverride = old: {
+            src = inputs.llama-cpp-src;
+            patches = [];
+            version = "unstable-2026-07-15";
+          };
+          llama-cpp = (pkgs.llama-cpp.overrideAttrs llamaCppOverride);
+          llama-cpp-vulkan = (pkgs.llama-cpp.override {vulkanSupport = true;}).overrideAttrs llamaCppOverride;
+          llama-cpp-rocm = (pkgs.llama-cpp-rocm.overrideAttrs llamaCppOverride);
           whisper-cpp-vulkan = pkgs.whisper-cpp.override {vulkanSupport = true;};
           stable-diffusion-cpp-rocm = pkgs.stable-diffusion-cpp.override {rocmSupport = true;};
           libwebsockets = libwebsocketsOverride pkgs;
