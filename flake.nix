@@ -100,8 +100,14 @@
                 src = inputs.llama-cpp-src;
                 version = "unstable-2026-07-15";
                 patches = (old.patches or []) ++ [
-                  (builtins.fetchurl "https://huggingface.co/AngelSlim/Hy3-GGUF/raw/main/patches/01-hyv3-arch.patch")
-                  (builtins.fetchurl "https://huggingface.co/AngelSlim/Hy3-GGUF/raw/main/patches/02-hyv3-mtp-tools.patch")
+                  (pinned.fetchurl {
+                    url = "https://huggingface.co/AngelSlim/Hy3-GGUF/raw/main/patches/01-hyv3-arch.patch";
+                    hash = "sha256-Hks9tV5JdQUC9d7D+YDY2cQOg9Qn79jUEdoIc0jlafM=";
+                  })
+                  (pinned.fetchurl {
+                    url = "https://huggingface.co/AngelSlim/Hy3-GGUF/raw/main/patches/02-hyv3-mtp-tools.patch";
+                    hash = "sha256-Qz/Z/IX1QpalfwcPA2/rkpngFtdMKoC74cRaPWsMXaE=";
+                  })
                 ];
                 # build-info.cpp parses the version as a C integer expression;
                 # feed the build number explicitly.
@@ -163,8 +169,14 @@
             src = inputs.llama-cpp-src;
             version = "unstable-2026-07-15";
             patches = (old.patches or []) ++ [
-              (builtins.fetchurl "https://huggingface.co/AngelSlim/Hy3-GGUF/raw/main/patches/01-hyv3-arch.patch")
-              (builtins.fetchurl "https://huggingface.co/AngelSlim/Hy3-GGUF/raw/main/patches/02-hyv3-mtp-tools.patch")
+              (pkgs.fetchurl {
+                url = "https://huggingface.co/AngelSlim/Hy3-GGUF/raw/main/patches/01-hyv3-arch.patch";
+                hash = "sha256-Hks9tV5JdQUC9d7D+YDY2cQOg9Qn79jUEdoIc0jlafM=";
+              })
+              (pkgs.fetchurl {
+                url = "https://huggingface.co/AngelSlim/Hy3-GGUF/raw/main/patches/02-hyv3-mtp-tools.patch";
+                hash = "sha256-Qz/Z/IX1QpalfwcPA2/rkpngFtdMKoC74cRaPWsMXaE=";
+              })
             ];
             cmakeFlags = (old.cmakeFlags or []) ++ [ "-DLLAMA_BUILD_NUMBER=0" ];
             npmDepsHash = "sha256-X1DZgmhS/zHTqDT5zq0kywwntthcJ9vRXeqyO3zz6UU=";
