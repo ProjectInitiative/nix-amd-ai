@@ -17,7 +17,7 @@
       flake = false;
     };
     llama-cpp-src = {
-      url = "github:ggml-org/llama.cpp";
+      url = "github:ggml-org/llama.cpp/refs/pull/25364/head";
       flake = false;
     };
   };
