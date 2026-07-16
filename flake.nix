@@ -102,14 +102,9 @@
                 # a C expression; feed the build number explicitly to avoid
                 # 'unstable was not declared in this scope'.
                 cmakeFlags = (old.cmakeFlags or []) ++ [ "-DLLAMA_BUILD_NUMBER=0" ];
-                # The PR branch has a different package-lock.json — strip the
-                # web UI before npmDepsHook runs so we don't need to chase npm
-                # hashes on every PR update.
-                prePatch = (old.prePatch or "") + ''
-                  rm -rf tools/ui
-                  substituteInPlace tools/CMakeLists.txt \
-                    --replace-fail 'add_subdirectory(ui)' '# add_subdirectory(ui)  # stripped for Nix'
-                '';
+                # The PR branch has a different package-lock.json; the correct
+                # npmDepsHash was computed from a fresh build. Update when the
+                # PR changes: set to lib.fakeHash, build, copy the got hash.
                 npmDepsHash = "sha256-X1DZgmhS/zHTqDT5zq0kywwntthcJ9vRXeqyO3zz6UU=";
               };
               llama-cpp = (pinned.llama-cpp.overrideAttrs llamaCppOverride);
@@ -166,11 +161,6 @@
             patches = [];
             version = "unstable-2026-07-15";
             cmakeFlags = (old.cmakeFlags or []) ++ [ "-DLLAMA_BUILD_NUMBER=0" ];
-            prePatch = (old.prePatch or "") + ''
-              rm -rf tools/ui
-              substituteInPlace tools/CMakeLists.txt \
-                --replace-fail 'add_subdirectory(ui)' '# add_subdirectory(ui)  # stripped for Nix'
-            '';
             npmDepsHash = "sha256-X1DZgmhS/zHTqDT5zq0kywwntthcJ9vRXeqyO3zz6UU=";
           };
           llama-cpp = (pkgs.llama-cpp.overrideAttrs llamaCppOverride);
