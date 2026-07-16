@@ -17,7 +17,7 @@
       flake = false;
     };
     llama-cpp-src = {
-      url = "github:ggml-org/llama.cpp/refs/pull/25364/head";
+      url = "github:ggml-org/llama.cpp/19bba67c1f4db723c60a0d421aa0788bf4ddc699";
       flake = false;
     };
   };
@@ -91,20 +91,23 @@
               libwebsockets = libwebsocketsOverride pinned;
               xrt = pinned.callPackage ./pkgs/xrt {};
               fastflowlm = pinned.callPackage ./pkgs/fastflowlm {inherit xrt;};
-              # Allow overriding llama-cpp source to pick up latest model
-              # architectures (e.g. hy_v3). Update via:
+              # Pin llama.cpp to a specific base commit and apply the AngelSlim
+              # Hy3 (hy_v3) patches from HuggingFace. Both patches are verified
+              # against 19bba67 (the pinned commit in the flake lock).
+              # Update via:
               #   nix flake lock --update-input llama-cpp-src
               llamaCppOverride = old: {
                 src = inputs.llama-cpp-src;
-                patches = [];
                 version = "unstable-2026-07-15";
-                # Latest master's build-info.cpp parses the version string as
-                # a C expression; feed the build number explicitly to avoid
-                # 'unstable was not declared in this scope'.
+                patches = (old.patches or []) ++ [
+                  (builtins.fetchurl "https://huggingface.co/AngelSlim/Hy3-GGUF/raw/main/patches/01-hyv3-arch.patch")
+                  (builtins.fetchurl "https://huggingface.co/AngelSlim/Hy3-GGUF/raw/main/patches/02-hyv3-mtp-tools.patch")
+                ];
+                # build-info.cpp parses the version as a C integer expression;
+                # feed the build number explicitly.
                 cmakeFlags = (old.cmakeFlags or []) ++ [ "-DLLAMA_BUILD_NUMBER=0" ];
-                # The PR branch has a different package-lock.json; the correct
-                # npmDepsHash was computed from a fresh build. Update when the
-                # PR changes: set to lib.fakeHash, build, copy the got hash.
+                # The pinned commit has a specific package-lock.json; recompute
+                # when the pinned commit changes.
                 npmDepsHash = "sha256-X1DZgmhS/zHTqDT5zq0kywwntthcJ9vRXeqyO3zz6UU=";
               };
               llama-cpp = (pinned.llama-cpp.overrideAttrs llamaCppOverride);
@@ -158,8 +161,11 @@
           fastflowlm = pkgs.callPackage ./pkgs/fastflowlm {inherit xrt;};
           llamaCppOverride = old: {
             src = inputs.llama-cpp-src;
-            patches = [];
             version = "unstable-2026-07-15";
+            patches = (old.patches or []) ++ [
+              (builtins.fetchurl "https://huggingface.co/AngelSlim/Hy3-GGUF/raw/main/patches/01-hyv3-arch.patch")
+              (builtins.fetchurl "https://huggingface.co/AngelSlim/Hy3-GGUF/raw/main/patches/02-hyv3-mtp-tools.patch")
+            ];
             cmakeFlags = (old.cmakeFlags or []) ++ [ "-DLLAMA_BUILD_NUMBER=0" ];
             npmDepsHash = "sha256-X1DZgmhS/zHTqDT5zq0kywwntthcJ9vRXeqyO3zz6UU=";
           };
