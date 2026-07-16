@@ -114,7 +114,7 @@
                 cmakeFlags = (old.cmakeFlags or []) ++ [ "-DLLAMA_BUILD_NUMBER=0" ];
                 # The pinned commit has a specific package-lock.json; recompute
                 # when the pinned commit changes.
-                npmDepsHash = "sha256-X1DZgmhS/zHTqDT5zq0kywwntthcJ9vRXeqyO3zz6UU=";
+                npmDepsHash = "sha256-pjdbI6NcZRlJVd62xhgbLhWrwFYwgsIwjORqvo1+VD8=";
               };
               llama-cpp = (pinned.llama-cpp.overrideAttrs llamaCppOverride);
               llama-cpp-vulkan = (pinned.llama-cpp.override {vulkanSupport = true;}).overrideAttrs llamaCppOverride;
@@ -179,7 +179,7 @@
               })
             ];
             cmakeFlags = (old.cmakeFlags or []) ++ [ "-DLLAMA_BUILD_NUMBER=0" ];
-            npmDepsHash = "sha256-X1DZgmhS/zHTqDT5zq0kywwntthcJ9vRXeqyO3zz6UU=";
+            npmDepsHash = "sha256-pjdbI6NcZRlJVd62xhgbLhWrwFYwgsIwjORqvo1+VD8=";
           };
           llama-cpp = (pkgs.llama-cpp.overrideAttrs llamaCppOverride);
           llama-cpp-vulkan = (pkgs.llama-cpp.override {vulkanSupport = true;}).overrideAttrs llamaCppOverride;
