@@ -110,7 +110,7 @@
                   substituteInPlace tools/CMakeLists.txt \
                     --replace-fail 'add_subdirectory(ui)' '# add_subdirectory(ui)  # stripped for Nix'
                 '';
-                npmDepsHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+                npmDepsHash = "sha256-X1DZgmhS/zHTqDT5zq0kywwntthcJ9vRXeqyO3zz6UU=";
               };
               llama-cpp = (pinned.llama-cpp.overrideAttrs llamaCppOverride);
               llama-cpp-vulkan = (pinned.llama-cpp.override {vulkanSupport = true;}).overrideAttrs llamaCppOverride;
@@ -171,7 +171,7 @@
               substituteInPlace tools/CMakeLists.txt \
                 --replace-fail 'add_subdirectory(ui)' '# add_subdirectory(ui)  # stripped for Nix'
             '';
-            npmDepsHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+            npmDepsHash = "sha256-X1DZgmhS/zHTqDT5zq0kywwntthcJ9vRXeqyO3zz6UU=";
           };
           llama-cpp = (pkgs.llama-cpp.overrideAttrs llamaCppOverride);
           llama-cpp-vulkan = (pkgs.llama-cpp.override {vulkanSupport = true;}).overrideAttrs llamaCppOverride;
