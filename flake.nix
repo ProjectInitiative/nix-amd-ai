@@ -17,7 +17,7 @@
       flake = false;
     };
     llama-cpp-src = {
-      url = "github:ggml-org/llama.cpp/19bba67c1f4db723c60a0d421aa0788bf4ddc699";
+      url = "github:ggml-org/llama.cpp/2969d6d15d67a08e7b83f26164b15350c79c5248";
       flake = false;
     };
   };
@@ -91,24 +91,12 @@
               libwebsockets = libwebsocketsOverride pinned;
               xrt = pinned.callPackage ./pkgs/xrt {};
               fastflowlm = pinned.callPackage ./pkgs/fastflowlm {inherit xrt;};
-              # Pin llama.cpp to a specific base commit and apply the AngelSlim
-              # Hy3 (hy_v3) patches from HuggingFace. Both patches are verified
-              # against 19bba67 (the pinned commit in the flake lock).
-              # Update via:
-              #   nix flake lock --update-input llama-cpp-src
+              # Pin llama.cpp to a revision that includes upstream Hy3 (hy_v3)
+              # and MTP support. The old HuggingFace patch files were removed
+              # from AngelSlim/Hy3-GGUF, so do not fetch them here.
               llamaCppOverride = old: {
                 src = inputs.llama-cpp-src;
-                version = "unstable-2026-07-15";
-                patches = (old.patches or []) ++ [
-                  (pinned.fetchurl {
-                    url = "https://huggingface.co/AngelSlim/Hy3-GGUF/raw/main/patches/01-hyv3-arch.patch";
-                    hash = "sha256-Hks9tV5JdQUC9d7D+YDY2cQOg9Qn79jUEdoIc0jlafM=";
-                  })
-                  (pinned.fetchurl {
-                    url = "https://huggingface.co/AngelSlim/Hy3-GGUF/raw/main/patches/02-hyv3-mtp-tools.patch";
-                    hash = "sha256-Qz/Z/IX1QpalfwcPA2/rkpngFtdMKoC74cRaPWsMXaE=";
-                  })
-                ];
+                version = "unstable-2026-07-13";
                 # build-info.cpp parses the version as a C integer expression;
                 # feed the build number explicitly.
                 cmakeFlags = (old.cmakeFlags or []) ++ [ "-DLLAMA_BUILD_NUMBER=0" ];
@@ -165,19 +153,11 @@
         linuxPackages = let
           xrt = pkgs.callPackage ./pkgs/xrt {};
           fastflowlm = pkgs.callPackage ./pkgs/fastflowlm {inherit xrt;};
+          # Hy3 (hy_v3) and MTP support are included in the pinned upstream
+          # revision; the former HuggingFace patches are no longer available.
           llamaCppOverride = old: {
             src = inputs.llama-cpp-src;
-            version = "unstable-2026-07-15";
-            patches = (old.patches or []) ++ [
-              (pkgs.fetchurl {
-                url = "https://huggingface.co/AngelSlim/Hy3-GGUF/raw/main/patches/01-hyv3-arch.patch";
-                hash = "sha256-Hks9tV5JdQUC9d7D+YDY2cQOg9Qn79jUEdoIc0jlafM=";
-              })
-              (pkgs.fetchurl {
-                url = "https://huggingface.co/AngelSlim/Hy3-GGUF/raw/main/patches/02-hyv3-mtp-tools.patch";
-                hash = "sha256-Qz/Z/IX1QpalfwcPA2/rkpngFtdMKoC74cRaPWsMXaE=";
-              })
-            ];
+            version = "unstable-2026-07-13";
             cmakeFlags = (old.cmakeFlags or []) ++ [ "-DLLAMA_BUILD_NUMBER=0" ];
             npmDepsHash = "sha256-pjdbI6NcZRlJVd62xhgbLhWrwFYwgsIwjORqvo1+VD8=";
           };
